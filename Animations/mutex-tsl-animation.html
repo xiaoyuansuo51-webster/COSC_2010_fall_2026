@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive explanation of a mutex implemented with the atomic test-and-set-lock instruction.">
+  <title>Mutex and TSL Animation</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#f6f8fb;--surface:#fff;--text:#172033;--muted:#596579;--line:#d7ddea;--blue:#2366d1;--blue-soft:#e9f1ff;--green:#277f51;--green-soft:#e7f6ed;--red:#bf3440;--red-soft:#fff0f2;--purple:#7342b7;--purple-soft:#f2eafd;--gold:#c9891d;--gold-soft:#fff2d7;--code:#eef2f7;--shadow:0 14px 36px rgba(25,43,77,.10)}
+    @media(prefers-color-scheme:dark){:root{--bg:#111722;--surface:#1a2230;--text:#f4f7fb;--muted:#aeb8ca;--line:#334054;--blue:#82adff;--blue-soft:#203a65;--green:#6bd398;--green-soft:#203f30;--red:#ff8b94;--red-soft:#55272d;--purple:#c79afa;--purple-soft:#3c2858;--gold:#ffc461;--gold-soft:#4f3a18;--code:#111925;--shadow:0 14px 36px rgba(0,0,0,.28)}}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55}main{width:min(1100px,calc(100% - 32px));margin:36px auto 64px}header{margin-bottom:22px}h1{margin:0 0 8px;font-size:clamp(2rem,5vw,3.25rem);line-height:1.05}h2{margin:0 0 12px;font-size:1.45rem}h3{margin:0 0 8px;font-size:1.08rem}p{margin:0 0 12px}.lead{max-width:820px;color:var(--muted);font-size:1.05rem}
+    .panel,.explanation section{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}.panel{padding:clamp(18px,3vw,30px)}.explanation section{padding:20px;box-shadow:none}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}.tabs,.actions{display:flex;gap:8px;flex-wrap:wrap}button{min-height:42px;border:1px solid var(--line);border-radius:9px;padding:9px 13px;background:var(--surface);color:var(--text);font:inherit;font-weight:650;cursor:pointer}button:hover{border-color:var(--blue)}button:focus-visible{outline:3px solid var(--blue-soft);outline-offset:2px}button.active,button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}@media(prefers-color-scheme:dark){button.active,button.primary{color:#101722}}
+    .machine{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:22px;align-items:center;min-height:330px}.thread{padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--bg);text-align:center;transition:transform .25s,opacity .25s,border-color .25s}.thread.running{transform:translateY(-5px);border-color:var(--green)}.thread.blocked{opacity:.6;border-color:var(--red)}.thread.critical{border-color:var(--purple);background:var(--purple-soft)}.thread-icon{width:72px;height:72px;margin:0 auto 9px;border-radius:50%;display:grid;place-items:center;background:var(--blue-soft);font-size:1.5rem;font-weight:850}.thread-name{font-weight:850}.thread-state{color:var(--muted);min-height:1.5em}.thread.running .thread-state{color:var(--green);font-weight:750}.thread.blocked .thread-state{color:var(--red);font-weight:750}.thread.critical .thread-state{color:var(--purple);font-weight:750}
+    .lock-area{text-align:center}.lock{padding:22px 16px;border:2px solid var(--green);border-radius:18px;background:var(--green-soft);transition:background .25s,border-color .25s,transform .25s}.lock.locked{border-color:var(--red);background:var(--red-soft);transform:scale(1.02)}.lock-icon{font-size:3.6rem}.lock-title{font-weight:850;font-size:1.15rem}.lock-owner{color:var(--muted);min-height:1.55em;font-weight:700}.values{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.value-box{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.value-box strong{display:block;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.value{font-size:1.65rem;font-weight:850;font-variant-numeric:tabular-nums}.critical-resource{margin-top:13px;padding:11px;border:1px dashed var(--line);border-radius:10px}.counter{font-size:1.5rem;font-weight:850;font-variant-numeric:tabular-nums}
+    .event{margin-top:20px;min-height:112px;padding:15px 17px;border-left:5px solid var(--blue);border-radius:0 10px 10px 0;background:var(--blue-soft)}.event.block{border-left-color:var(--red);background:var(--red-soft)}.event.warning{border-left-color:var(--gold);background:var(--gold-soft)}.event.success{border-left-color:var(--green);background:var(--green-soft)}.step{color:var(--muted);font-size:.9rem;font-weight:700}.message{margin:3px 0 6px;font-weight:700}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}.current-code{color:var(--muted)}.current-code code{color:var(--text);font-weight:700}.progress{display:flex;gap:5px;margin-top:14px}.progress span{height:5px;flex:1;border-radius:4px;background:var(--line)}.progress span.done{background:var(--blue)}
+    .explanation{margin-top:30px;display:grid;gap:18px}.two-column{display:grid;grid-template-columns:1fr 1fr;gap:18px}.three-column{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}ol,ul{margin:8px 0 0;padding-left:1.35rem}li+li{margin-top:6px}pre{margin:12px 0 0;padding:15px;background:var(--code);border:1px solid var(--line);border-radius:10px;overflow-x:auto;font-size:.88rem;line-height:1.55}.atomic{border-left:4px solid var(--green);padding-left:14px}.warning-text{border-left:4px solid var(--gold);padding-left:14px}.note{color:var(--muted)}footer{margin-top:24px;color:var(--muted);font-size:.9rem;text-align:center}
+    @media(max-width:760px){main{width:min(100% - 20px,1100px);margin-top:20px}.machine{grid-template-columns:1fr 1fr;min-height:0}.lock-area{grid-column:1/-1;grid-row:1}.two-column,.three-column{grid-template-columns:1fr}.thread-icon{width:58px;height:58px}.values{grid-template-columns:1fr 1fr}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>Mutexes and Atomic Test-and-Set</h1><p class="lead">Step through mutex acquisition, contention, yielding, unlocking, and the race that occurs when checking and setting the lock are not atomic.</p></header>
+  <section class="panel" aria-labelledby="animation-title">
+    <h2 id="animation-title">Interactive animation</h2>
+    <div class="toolbar">
+      <div class="tabs" role="group" aria-label="Choose a mutex scenario">
+        <button class="active" id="acquire-tab" type="button" aria-pressed="true">Acquire lock</button>
+        <button id="contention-tab" type="button" aria-pressed="false">Contention and yield</button>
+        <button id="broken-tab" type="button" aria-pressed="false">Broken check-then-set</button>
+        <button id="unlock-tab" type="button" aria-pressed="false">Unlock</button>
+      </div>
+      <div class="actions"><button id="reset" type="button">Restart</button><button class="primary" id="next" type="button">Next step</button></div>
+    </div>
+
+    <div class="machine" role="img" aria-label="Two threads competing for a mutex-protected critical section">
+      <div class="thread" id="t1"><div class="thread-icon">T1</div><div class="thread-name">Thread 1</div><div class="thread-state" id="t1-state">Ready</div></div>
+      <div class="lock-area">
+        <div class="lock" id="lock"><div class="lock-icon" id="lock-icon" aria-hidden="true">🔓</div><div class="lock-title">MUTEX</div><div class="lock-owner" id="lock-owner">Unlocked</div></div>
+        <div class="values"><div class="value-box"><strong>MUTEX</strong><div class="value" id="mutex-value">0</div></div><div class="value-box"><strong>REGISTER</strong><div class="value" id="register-value">—</div></div></div>
+        <div class="critical-resource">Shared counter: <span class="counter" id="counter">0</span></div>
+      </div>
+      <div class="thread" id="t2"><div class="thread-icon">T2</div><div class="thread-name">Thread 2</div><div class="thread-state" id="t2-state">Ready</div></div>
+    </div>
+
+    <div class="event" id="event" aria-live="polite"><div class="step" id="step-label">Step 0</div><div class="message" id="message">Choose a scenario and advance one machine or scheduling event at a time.</div><div class="current-code" id="code-line"></div><div class="progress" id="progress" aria-hidden="true"></div></div>
+  </section>
+
+  <div class="explanation">
+    <section><h2>Mutex state</h2><p><code>MUTEX = 0</code> means unlocked. <code>MUTEX = 1</code> means locked. Only the thread that successfully changes the state from 0 to 1 may enter the critical section.</p></section>
+    <section><h2>What TSL does</h2><p><code>TSL REGISTER,MUTEX</code> performs two actions as one indivisible hardware operation: it copies the old value of <code>MUTEX</code> into <code>REGISTER</code>, and then stores 1 in <code>MUTEX</code>.</p><p class="atomic"><strong>Atomic means no other thread can observe or interrupt the operation halfway through.</strong> If <code>REGISTER</code> receives 0, the caller acquired an unlocked mutex. If it receives 1, another thread already held the mutex.</p></section>
+    <section><h2>Simple implementation</h2><div class="two-column"><div><h3><code>mutex_lock</code></h3><pre><code>mutex_lock:
+    TSL  REGISTER, MUTEX
+    CMP  REGISTER, #0
+    JZE  ok
+    CALL thread_yield
+    JMP  mutex_lock
+ok:
+    RET</code></pre></div><div><h3><code>mutex_unlock</code></h3><pre><code>mutex_unlock:
+    MOVE MUTEX, #0
+    RET</code></pre></div></div></section>
+    <div class="three-column"><section><h3>Uncontended</h3><p>A thread sees the old value 0, atomically changes the mutex to 1, and enters the critical section.</p></section><section><h3>Contended</h3><p>A thread receives the old value 1, yields the CPU, and tries again after another thread runs.</p></section><section><h3>Unlock</h3><p>The owner stores 0 in the mutex, making the critical section available to a future contender.</p></section></div>
+    <section><h2>Why ordinary check-then-set fails</h2><p>If reading the lock and setting it are separate instructions, a context switch can occur between them. Two threads can both read 0 before either stores 1, so both believe they acquired the mutex and both enter the critical section.</p><p class="warning-text"><strong>The mutex variable alone does not provide mutual exclusion.</strong> The transition from unlocked to locked must be atomic.</p></section>
+    <section><h2>Yielding versus spinning</h2><p>A pure spinlock repeatedly executes the test-and-set instruction while waiting, consuming CPU time. This example calls <code>thread_yield</code> after a failed attempt so another runnable thread can use the processor. The waiting thread still retries later, and this simple loop does not guarantee fairness.</p></section>
+    <section><h2>Limitations of the simple example</h2><ul><li>It does not track or verify lock ownership before unlocking.</li><li>It provides no fairness guarantee, so a thread may repeatedly lose the race.</li><li>Production mutexes usually maintain a wait queue and block threads rather than relying only on repeated retries.</li><li>Real implementations also require architecture-appropriate memory-ordering guarantees.</li></ul></section>
+    <section><h2>Discussion questions</h2><ul><li>Why must TSL copy the old mutex value before setting it to 1?</li><li>What does <code>REGISTER = 0</code> tell the caller?</li><li>Why does a failed thread yield before retrying?</li><li>How can two threads enter the critical section when check and set are separate?</li><li>Why might this implementation be unfair?</li></ul></section>
+  </div>
+  <footer>Designed as a classroom visualization for operating-systems instruction.</footer>
+</main>
+
+<script>
+(() => {
+  const base={t1:"Ready",t2:"Ready",mutex:0,register:"—",owner:"",counter:0,kind:""};
+  const scenarios={
+    acquire:{initial:base,steps:[
+      {...base,t1:"Running",msg:"Thread 1 calls mutex_lock while the mutex is unlocked.",code:"CALL mutex_lock"},
+      {...base,t1:"Running",mutex:1,register:0,owner:"Thread 1",msg:"TSL atomically copies the old value 0 into REGISTER and sets MUTEX to 1.",code:"TSL REGISTER, MUTEX"},
+      {...base,t1:"Running",mutex:1,register:0,owner:"Thread 1",msg:"REGISTER equals 0, so the comparison reports that the mutex was previously unlocked.",code:"CMP REGISTER, #0"},
+      {...base,t1:"Running",mutex:1,register:0,owner:"Thread 1",kind:"success",msg:"The zero result takes the jump to ok.",code:"JZE ok"},
+      {...base,t1:"In critical section",mutex:1,register:0,owner:"Thread 1",kind:"success",msg:"Thread 1 returns from mutex_lock and enters the critical section.",code:"ok: RET"},
+      {...base,t1:"In critical section",mutex:1,register:0,owner:"Thread 1",counter:1,kind:"success",msg:"Thread 1 safely updates the shared counter.",code:"counter++"}
+    ]},
+    contention:{initial:{...base,t1:"In critical section",mutex:1,owner:"Thread 1"},steps:[
+      {...base,t1:"In critical section",t2:"Running",mutex:1,owner:"Thread 1",msg:"Thread 2 attempts to acquire the mutex while Thread 1 owns it.",code:"Thread 2: CALL mutex_lock"},
+      {...base,t1:"In critical section",t2:"Running",mutex:1,register:1,owner:"Thread 1",msg:"TSL copies the old value 1 into REGISTER. MUTEX remains 1.",code:"TSL REGISTER, MUTEX"},
+      {...base,t1:"In critical section",t2:"Running",mutex:1,register:1,owner:"Thread 1",kind:"block",msg:"REGISTER is not zero, so Thread 2 did not acquire the lock.",code:"CMP REGISTER, #0; JZE not taken"},
+      {...base,t1:"Running",t2:"Yielded",mutex:1,register:1,owner:"Thread 1",kind:"block",msg:"Thread 2 yields the CPU, allowing Thread 1 to continue.",code:"CALL thread_yield"},
+      {...base,t1:"Ready",t2:"Ready to retry",mutex:0,register:1,owner:"",kind:"success",msg:"Thread 1 finishes and unlocks the mutex.",code:"Thread 1: MOVE MUTEX, #0"},
+      {...base,t1:"Ready",t2:"Running",mutex:1,register:0,owner:"Thread 2",kind:"success",msg:"Thread 2 retries. TSL now receives 0 and acquires the mutex.",code:"Thread 2: TSL REGISTER, MUTEX"},
+      {...base,t1:"Ready",t2:"In critical section",mutex:1,register:0,owner:"Thread 2",counter:1,kind:"success",msg:"Thread 2 enters and safely updates the shared counter.",code:"counter++"}
+    ]},
+    broken:{initial:base,steps:[
+      {...base,t1:"Running",msg:"A broken implementation reads the mutex separately from setting it.",code:"Thread 1: if (MUTEX == 0)"},
+      {...base,t1:"Paused before set",register:0,msg:"Thread 1 reads 0, but a context switch occurs before it stores 1.",code:"Thread 1 reads MUTEX == 0"},
+      {...base,t1:"Paused before set",t2:"Running",register:0,msg:"Thread 2 also reads 0 because Thread 1 has not changed the mutex yet.",code:"Thread 2 reads MUTEX == 0"},
+      {...base,t1:"Paused before set",t2:"In critical section",mutex:1,register:0,owner:"Thread 2",kind:"warning",msg:"Thread 2 stores 1 and enters the critical section.",code:"Thread 2: MUTEX = 1"},
+      {...base,t1:"In critical section",t2:"In critical section",mutex:1,register:0,owner:"Both threads",kind:"warning",msg:"Thread 1 resumes, stores 1, and also enters. Mutual exclusion has failed.",code:"Thread 1: MUTEX = 1"},
+      {...base,t1:"In critical section",t2:"In critical section",mutex:1,register:0,owner:"Both threads",counter:1,kind:"warning",msg:"Both threads may update shared state concurrently, causing a race and possible lost update.",code:"counter++  // executed concurrently"}
+    ]},
+    unlock:{initial:{...base,t1:"In critical section",mutex:1,register:0,owner:"Thread 1",counter:1},steps:[
+      {...base,t1:"Running",mutex:1,register:0,owner:"Thread 1",counter:1,msg:"Thread 1 finishes its critical-section work.",code:"return from critical section"},
+      {...base,t1:"Running",mutex:0,register:0,owner:"",counter:1,kind:"success",msg:"mutex_unlock stores 0, making the mutex available.",code:"MOVE MUTEX, #0"},
+      {...base,t1:"Ready",mutex:0,register:0,owner:"",counter:1,kind:"success",msg:"Thread 1 returns to its noncritical work.",code:"RET"},
+      {...base,t1:"Ready",t2:"Running",mutex:1,register:0,owner:"Thread 2",counter:1,kind:"success",msg:"A later TSL by Thread 2 observes 0 and acquires the mutex.",code:"Thread 2: TSL REGISTER, MUTEX"}
+    ]}
+  };
+  const ids=["acquire","contention","broken","unlock"],tabs=Object.fromEntries(ids.map(id=>[id,document.getElementById(id+"-tab")]));
+  const el={reset:document.getElementById("reset"),next:document.getElementById("next"),t1:document.getElementById("t1"),t2:document.getElementById("t2"),t1State:document.getElementById("t1-state"),t2State:document.getElementById("t2-state"),lock:document.getElementById("lock"),icon:document.getElementById("lock-icon"),owner:document.getElementById("lock-owner"),mutex:document.getElementById("mutex-value"),register:document.getElementById("register-value"),counter:document.getElementById("counter"),event:document.getElementById("event"),step:document.getElementById("step-label"),msg:document.getElementById("message"),code:document.getElementById("code-line"),progress:document.getElementById("progress")};
+  let scenario="acquire",index=-1;
+  function current(){const s=scenarios[scenario];return index<0?s.initial:s.steps[index]}
+  function actor(node,state){node.classList.remove("running","blocked","critical");if(["Running","Ready to retry"].includes(state))node.classList.add("running");if(["Yielded","Paused before set"].includes(state))node.classList.add("blocked");if(state==="In critical section")node.classList.add("critical")}
+  function render(){const seq=scenarios[scenario].steps,s=current();el.t1State.textContent=s.t1;el.t2State.textContent=s.t2;actor(el.t1,s.t1);actor(el.t2,s.t2);el.mutex.textContent=s.mutex;el.register.textContent=s.register;el.counter.textContent=s.counter;el.lock.classList.toggle("locked",s.mutex===1);el.icon.textContent=s.mutex===1?"🔒":"🔓";el.owner.textContent=s.owner?s.owner+" owns the critical section":"Unlocked";el.step.textContent=index<0?"Step 0":`Step ${index+1} of ${seq.length}`;el.msg.textContent=s.msg||"Choose a scenario and advance one machine or scheduling event at a time.";el.code.replaceChildren();if(s.code){el.code.append(document.createTextNode("Current instruction: "));const c=document.createElement("code");c.textContent=s.code;el.code.append(c)}el.event.className="event"+(s.kind?" "+s.kind:"");el.next.textContent=index===seq.length-1?"Restart":"Next step";el.progress.replaceChildren();seq.forEach((_,i)=>{const m=document.createElement("span");if(i<=index)m.className="done";el.progress.append(m)})}
+  function select(name){scenario=name;index=-1;ids.forEach(id=>{const on=id===name;tabs[id].classList.toggle("active",on);tabs[id].setAttribute("aria-pressed",String(on))});render()}
+  ids.forEach(id=>tabs[id].addEventListener("click",()=>select(id)));el.reset.addEventListener("click",()=>{index=-1;render()});el.next.addEventListener("click",()=>{const n=scenarios[scenario].steps.length;index=index===n-1?-1:index+1;render()});render();
+})();
+</script>
+</body>
+</html>
