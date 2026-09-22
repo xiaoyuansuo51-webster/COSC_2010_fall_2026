@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive animation explaining monitors and condition variables through the bounded producer-consumer problem.">
+  <title>Monitors: Producer–Consumer Animation</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#f5f7fb;--surface:#fff;--text:#172033;--muted:#5b6679;--line:#d7deea;--blue:#2867cc;--blue-soft:#eaf2ff;--green:#278057;--green-soft:#e7f7ee;--red:#bd3947;--red-soft:#fff0f2;--purple:#8b3db3;--purple-soft:#f6eafb;--gold:#b97913;--gold-soft:#fff3d9;--code:#eef2f7;--shadow:0 14px 36px rgba(25,43,77,.10)}
+    @media(prefers-color-scheme:dark){:root{--bg:#111722;--surface:#1a2230;--text:#f4f7fb;--muted:#aeb8ca;--line:#344155;--blue:#83aeff;--blue-soft:#203a65;--green:#70d59d;--green-soft:#203f30;--red:#ff8e98;--red-soft:#55272d;--purple:#d396f1;--purple-soft:#442650;--gold:#ffc568;--gold-soft:#503b18;--code:#111925;--shadow:0 14px 36px rgba(0,0,0,.28)}}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55}main{width:min(1120px,calc(100% - 32px));margin:36px auto 64px}header{margin-bottom:22px}h1{margin:0 0 8px;font-size:clamp(2rem,5vw,3.2rem);line-height:1.05}h2{margin:0 0 12px;font-size:1.45rem}h3{margin:0 0 8px;font-size:1.08rem}p{margin:0 0 12px}.lead{max-width:850px;color:var(--muted);font-size:1.05rem}
+    .panel,.explanation section{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}.panel{padding:clamp(18px,3vw,30px)}.explanation section{padding:20px;box-shadow:none}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}.tabs,.actions{display:flex;gap:8px;flex-wrap:wrap}button{min-height:42px;border:1px solid var(--line);border-radius:9px;padding:9px 13px;background:var(--surface);color:var(--text);font:inherit;font-weight:700;cursor:pointer}button:hover{border-color:var(--blue)}button:focus-visible{outline:3px solid var(--blue-soft);outline-offset:2px}button.active,button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}@media(prefers-color-scheme:dark){button.active,button.primary{color:#101722}}
+    .machine{display:grid;grid-template-columns:180px minmax(360px,1fr) 180px;gap:18px;align-items:center}.actor{padding:15px;border:1px solid var(--line);border-radius:14px;background:var(--bg);text-align:center;transition:.25s}.actor.running{transform:translateY(-4px);border-color:var(--green)}.actor.waiting{opacity:.68;border-color:var(--red)}.actor.queued{border-color:var(--gold);background:var(--gold-soft)}.actor-icon{width:68px;height:68px;margin:0 auto 8px;border-radius:50%;display:grid;place-items:center;background:var(--blue-soft);font-size:1.35rem;font-weight:850}.actor-name{font-weight:850}.actor-state{min-height:2.8em;color:var(--muted)}.actor.running .actor-state{color:var(--green);font-weight:750}.actor.waiting .actor-state{color:var(--red);font-weight:750}.actor.queued .actor-state{color:var(--gold);font-weight:750}
+    .monitor{border:2px solid var(--purple);border-radius:18px;background:var(--purple-soft);padding:16px;min-height:330px}.monitor-title{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px;font-weight:850}.door{padding:5px 9px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:.88rem}.door.busy{color:var(--red);border-color:var(--red)}.inside{min-height:52px;padding:10px;border-radius:10px;background:var(--surface);border:1px solid var(--line);text-align:center}.inside strong{display:block}.buffer-label{display:flex;justify-content:space-between;margin:14px 0 7px;font-weight:750}.buffer{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.slot{height:54px;border:2px dashed var(--line);border-radius:10px;display:grid;place-items:center;background:var(--surface);font-weight:850;transition:.25s}.slot.full{border-style:solid;border-color:var(--green);background:var(--green-soft)}.conditions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.condition{padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:.9rem}.condition strong{display:block}.queue{min-height:1.5em;color:var(--muted)}
+    .event{margin-top:18px;min-height:118px;padding:15px 17px;border-left:5px solid var(--blue);border-radius:0 10px 10px 0;background:var(--blue-soft)}.event.wait{border-color:var(--red);background:var(--red-soft)}.event.signal{border-color:var(--green);background:var(--green-soft)}.event.note{border-color:var(--gold);background:var(--gold-soft)}.step{color:var(--muted);font-size:.9rem;font-weight:700}.message{margin:3px 0 6px;font-weight:700}.current-code{color:var(--muted)}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}.current-code code{color:var(--text);font-weight:700}.progress{display:flex;gap:5px;margin-top:14px}.progress span{height:5px;flex:1;border-radius:4px;background:var(--line)}.progress span.done{background:var(--blue)}
+    .explanation{margin-top:30px;display:grid;gap:18px}.two-column{display:grid;grid-template-columns:1fr 1fr;gap:18px}.three-column{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}ol,ul{margin:8px 0 0;padding-left:1.35rem}li+li{margin-top:6px}pre{margin:12px 0 0;padding:15px;background:var(--code);border:1px solid var(--line);border-radius:10px;overflow:auto;font-size:.87rem;line-height:1.5}.key{border-left:4px solid var(--green);padding-left:14px}.warning{border-left:4px solid var(--gold);padding-left:14px}.note-text{color:var(--muted)}footer{margin-top:24px;color:var(--muted);font-size:.9rem;text-align:center}
+    @media(max-width:800px){main{width:min(100% - 20px,1120px);margin-top:20px}.machine{grid-template-columns:1fr 1fr}.monitor{grid-column:1/-1;grid-row:1}.two-column,.three-column{grid-template-columns:1fr}.actor-icon{width:56px;height:56px}.conditions{grid-template-columns:1fr}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>Monitors and Condition Variables</h1><p class="lead">See how a monitor protects a bounded buffer automatically, and how <code>wait</code> and <code>signal</code> coordinate producers and consumers without exposing lock operations in the calling code.</p></header>
+  <section class="panel" aria-labelledby="animation-title">
+    <h2 id="animation-title">Interactive producer–consumer monitor</h2>
+    <div class="toolbar">
+      <div class="tabs" role="group" aria-label="Choose a monitor scenario">
+        <button class="active" id="exclusive-tab" type="button" aria-pressed="true">Automatic exclusion</button>
+        <button id="empty-tab" type="button" aria-pressed="false">Consumer waits</button>
+        <button id="full-tab" type="button" aria-pressed="false">Producer waits</button>
+        <button id="signal-tab" type="button" aria-pressed="false">Signal and resume</button>
+      </div>
+      <div class="actions"><button id="reset" type="button">Restart</button><button class="primary" id="next" type="button">Next step</button></div>
+    </div>
+    <div class="machine" role="img" aria-label="A producer and consumer using a monitor containing a four-slot bounded buffer and two condition-variable queues">
+      <div class="actor" id="producer"><div class="actor-icon">P</div><div class="actor-name">Producer</div><div class="actor-state" id="producer-state">Ready</div></div>
+      <div class="monitor">
+        <div class="monitor-title"><span>monitor ProdCons</span><span class="door" id="door">Available</span></div>
+        <div class="inside"><strong>Inside monitor</strong><span id="inside">No thread</span></div>
+        <div class="buffer-label"><span>Bounded buffer</span><span><span id="count">0</span> / 4 items</span></div>
+        <div class="buffer" id="buffer" aria-label="Buffer slots"></div>
+        <div class="conditions">
+          <div class="condition"><strong>full condition</strong><div class="queue" id="full-queue">No producer waiting</div></div>
+          <div class="condition"><strong>empty condition</strong><div class="queue" id="empty-queue">No consumer waiting</div></div>
+        </div>
+      </div>
+      <div class="actor" id="consumer"><div class="actor-icon">C</div><div class="actor-name">Consumer</div><div class="actor-state" id="consumer-state">Ready</div></div>
+    </div>
+    <div class="event" id="event" aria-live="polite"><div class="step" id="step-label">Step 0</div><div class="message" id="message">Choose a scenario, then advance one monitor event at a time.</div><div class="current-code" id="code-line"></div><div class="progress" id="progress" aria-hidden="true"></div></div>
+  </section>
+
+  <div class="explanation">
+    <section><h2>What a monitor provides</h2><p>A monitor bundles shared state, procedures that operate on it, and synchronization rules into one module. At most one thread executes a monitor procedure at a time, so calls to <code>enter</code> and <code>remove</code> are automatically serialized.</p><p class="key"><strong>The caller does not explicitly lock and unlock the buffer.</strong> Entering a monitor procedure acquires its implicit lock; returning releases it.</p></section>
+    <div class="three-column"><section><h3>Implicit monitor lock</h3><p>Protects <code>count</code> and the buffer from simultaneous modification.</p></section><section><h3><code>full</code> condition</h3><p>Holds producers that cannot proceed because the buffer has no free slot.</p></section><section><h3><code>empty</code> condition</h3><p>Holds consumers that cannot proceed because the buffer has no item.</p></section></div>
+    <section><h2>The essential behavior of <code>wait</code></h2><ol><li>The caller joins the chosen condition-variable queue.</li><li>It atomically releases the monitor lock and suspends.</li><li>Another thread may now enter the monitor and change the state.</li><li>After being signaled, the caller must reacquire the monitor before continuing.</li></ol><p class="warning"><strong>If <code>wait</code> kept the monitor locked, the program would deadlock:</strong> no producer or consumer could enter to make the awaited condition true.</p></section>
+    <section><h2>Safer bounded-buffer pseudocode</h2><div class="two-column"><div><h3>Monitor procedures</h3><pre><code>monitor ProdCons {
+  condition full, empty;
+  int count = 0;
+
+  void enter(item) {
+    while (count == N)
+      wait(full);
+    insert_item(item);
+    count++;
+    signal(empty);
+  }
+
+  void remove(item*) {
+    while (count == 0)
+      wait(empty);
+    *item = remove_item();
+    count--;
+    signal(full);
+  }
+}</code></pre></div><div><h3>Client code</h3><pre><code>void producer() {
+  while (true) {
+    item = produce_item();
+    ProdCons.enter(item);
+  }
+}
+
+void consumer() {
+  while (true) {
+    ProdCons.remove(&item);
+    consume_item(item);
+  }
+}</code></pre><p class="note-text">Producing and consuming happen outside the monitor, keeping the protected region short.</p></div></div></section>
+    <section><h2>Why use <code>while</code> instead of <code>if</code>?</h2><p>Many real systems, including Java-style monitors, use Mesa semantics: <code>signal</code>/<code>notify</code> makes a waiter eligible to run but does not transfer the monitor immediately. By the time that thread reacquires the monitor, another thread may have changed the state. Rechecking the predicate in a <code>while</code> loop is therefore the robust pattern and also handles spurious wakeups.</p></section>
+    <section><h2><code>signal</code> is not stored</h2><p>A condition variable is a waiting queue, not a counter. If nobody is waiting, <code>signal</code> has no remembered effect. This is not a lost wakeup when the condition is always checked while holding the same monitor lock: a thread either observes that it can proceed, or it atomically releases the lock and joins the wait queue.</p></section>
+    <section><h2>Monitor semantics vary</h2><ul><li><strong>Hoare semantics:</strong> the awakened thread runs in the monitor immediately; the signaling thread yields it.</li><li><strong>Mesa semantics:</strong> the awakened thread becomes runnable and later competes to reacquire the monitor. Most common programming environments follow this style.</li><li><strong>Java:</strong> <code>synchronized</code> supplies the monitor lock; <code>wait()</code> releases it; <code>notify()</code> wakes one waiter; <code>notifyAll()</code> wakes all waiters.</li></ul></section>
+    <section><h2>Discussion questions</h2><ul><li>Why must <code>wait</code> release the monitor lock atomically?</li><li>Why can only one producer or consumer execute a monitor procedure at once?</li><li>Which state change should wake a consumer? Which should wake a producer?</li><li>Why is <code>while</code> normally safer than <code>if</code> around a wait?</li><li>How is a condition variable different from a semaphore counter?</li></ul></section>
+  </div>
+  <footer>Standalone classroom visualization for operating-systems instruction.</footer>
+</main>
+<script>
+(() => {
+  const base={count:0,inside:"No thread",producer:"Ready",consumer:"Ready",full:false,empty:false,kind:"",msg:"",code:""};
+  const scenarios={
+    exclusive:{initial:{...base,count:1},steps:[
+      {...base,count:1,producer:"Calling enter(item)",inside:"Producer",msg:"The producer enters the monitor; its implicit lock is acquired automatically.",code:"ProdCons.enter(item)"},
+      {...base,count:1,producer:"Inside monitor",consumer:"Calling remove(&item)",inside:"Producer",kind:"note",msg:"The consumer calls remove, but cannot enter while the producer is executing a monitor procedure.",code:"monitor entry queue: Consumer"},
+      {...base,count:2,producer:"Returning",consumer:"Queued at monitor",inside:"Producer",kind:"signal",msg:"The producer inserts one item. Shared count changes while only the producer is inside.",code:"insert_item(item); count++"},
+      {...base,count:2,producer:"Ready",consumer:"Entering monitor",inside:"Consumer",msg:"The producer returns and releases the implicit lock. The consumer may now enter.",code:"ProdCons.remove(&item)"},
+      {...base,count:1,producer:"Ready",consumer:"Returning",inside:"Consumer",kind:"signal",msg:"The consumer removes one item safely, then returns and releases the monitor.",code:"*item = remove_item(); count--"}
+    ]},
+    empty:{initial:base,steps:[
+      {...base,consumer:"Calling remove(&item)",inside:"Consumer",msg:"The consumer enters the monitor while the buffer is empty.",code:"ProdCons.remove(&item)"},
+      {...base,consumer:"Checks count == 0",inside:"Consumer",msg:"The condition predicate is true: no item can be removed.",code:"while (count == 0)"},
+      {...base,consumer:"Waiting on empty",inside:"No thread",empty:true,kind:"wait",msg:"wait(empty) atomically queues the consumer, releases the monitor, and suspends it.",code:"wait(empty)"},
+      {...base,producer:"Entering monitor",consumer:"Waiting on empty",inside:"Producer",empty:true,msg:"Because the monitor was released, the producer can enter and make progress.",code:"ProdCons.enter(item)"},
+      {...base,count:1,producer:"Inside monitor",consumer:"Waiting on empty",inside:"Producer",empty:true,kind:"signal",msg:"The producer inserts an item. The predicate awaited by the consumer is now true.",code:"insert_item(item); count++"}
+    ]},
+    full:{initial:{...base,count:4},steps:[
+      {...base,count:4,producer:"Calling enter(item)",inside:"Producer",msg:"The producer enters, but every buffer slot is occupied.",code:"ProdCons.enter(item)"},
+      {...base,count:4,producer:"Checks count == N",inside:"Producer",msg:"The full-buffer predicate prevents insertion.",code:"while (count == N)"},
+      {...base,count:4,producer:"Waiting on full",inside:"No thread",full:true,kind:"wait",msg:"wait(full) queues the producer and releases the monitor lock.",code:"wait(full)"},
+      {...base,count:4,producer:"Waiting on full",consumer:"Entering monitor",inside:"Consumer",full:true,msg:"The consumer can now enter the released monitor.",code:"ProdCons.remove(&item)"},
+      {...base,count:3,producer:"Waiting on full",consumer:"Inside monitor",inside:"Consumer",full:true,kind:"signal",msg:"The consumer removes an item, creating the free slot the producer needs.",code:"*item = remove_item(); count--"}
+    ]},
+    signal:{initial:{...base,consumer:"Waiting on empty",empty:true},steps:[
+      {...base,producer:"Entering monitor",consumer:"Waiting on empty",inside:"Producer",empty:true,msg:"The consumer is asleep on empty; the producer enters the available monitor.",code:"ProdCons.enter(item)"},
+      {...base,count:1,producer:"Inside monitor",consumer:"Waiting on empty",inside:"Producer",empty:true,msg:"The producer inserts the first item.",code:"insert_item(item); count++"},
+      {...base,count:1,producer:"Inside monitor",consumer:"Awakened; waiting for monitor",inside:"Producer",kind:"signal",msg:"signal(empty) wakes one consumer, but under Mesa semantics the producer still owns the monitor.",code:"signal(empty)"},
+      {...base,count:1,producer:"Ready",consumer:"Reacquiring monitor",inside:"Consumer",kind:"note",msg:"After the producer returns, the awakened consumer reacquires the monitor.",code:"return from enter; resume remove"},
+      {...base,count:1,producer:"Ready",consumer:"Rechecks count != 0",inside:"Consumer",msg:"The consumer rechecks the predicate in the while loop before proceeding.",code:"while (count == 0)  // false"},
+      {...base,count:0,producer:"Ready",consumer:"Returning with item",inside:"Consumer",kind:"signal",msg:"The consumer removes the item and completes its monitor call.",code:"*item = remove_item(); count--"}
+    ]}
+  };
+  const names=["exclusive","empty","full","signal"],tabs=Object.fromEntries(names.map(n=>[n,document.getElementById(n+"-tab")]));
+  const el={producer:document.getElementById("producer"),consumer:document.getElementById("consumer"),producerState:document.getElementById("producer-state"),consumerState:document.getElementById("consumer-state"),door:document.getElementById("door"),inside:document.getElementById("inside"),count:document.getElementById("count"),buffer:document.getElementById("buffer"),fullQueue:document.getElementById("full-queue"),emptyQueue:document.getElementById("empty-queue"),event:document.getElementById("event"),step:document.getElementById("step-label"),message:document.getElementById("message"),code:document.getElementById("code-line"),progress:document.getElementById("progress"),next:document.getElementById("next"),reset:document.getElementById("reset")};
+  let scenario="exclusive",index=-1,itemSeed=1;
+  function current(){const s=scenarios[scenario];return index<0?s.initial:s.steps[index]}
+  function actor(node,state){node.classList.remove("running","waiting","queued");if(/Inside|Entering|Calling|Rechecks|Checks|Returning/.test(state))node.classList.add("running");if(/Waiting on/.test(state))node.classList.add("waiting");if(/Queued|Awakened|Reacquiring/.test(state))node.classList.add("queued")}
+  function render(){const seq=scenarios[scenario].steps,s=current();el.producerState.textContent=s.producer;el.consumerState.textContent=s.consumer;actor(el.producer,s.producer);actor(el.consumer,s.consumer);el.inside.textContent=s.inside;const busy=s.inside!=="No thread";el.door.textContent=busy?"Occupied":"Available";el.door.classList.toggle("busy",busy);el.count.textContent=s.count;el.buffer.replaceChildren();for(let i=0;i<4;i++){const slot=document.createElement("div");slot.className="slot"+(i<s.count?" full":" ");slot.textContent=i<s.count?`item ${i+1}`:"empty";el.buffer.append(slot)}el.fullQueue.textContent=s.full?"Producer waiting":"No producer waiting";el.emptyQueue.textContent=s.empty?"Consumer waiting":"No consumer waiting";el.step.textContent=index<0?"Step 0":`Step ${index+1} of ${seq.length}`;el.message.textContent=s.msg||"Choose a scenario, then advance one monitor event at a time.";el.code.replaceChildren();if(s.code){el.code.append(document.createTextNode("Current operation: "));const c=document.createElement("code");c.textContent=s.code;el.code.append(c)}el.event.className="event"+(s.kind?" "+s.kind:"");el.next.textContent=index===seq.length-1?"Restart":"Next step";el.progress.replaceChildren();seq.forEach((_,i)=>{const p=document.createElement("span");if(i<=index)p.className="done";el.progress.append(p)})}
+  function select(name){scenario=name;index=-1;names.forEach(n=>{const on=n===name;tabs[n].classList.toggle("active",on);tabs[n].setAttribute("aria-pressed",String(on))});render()}
+  names.forEach(n=>tabs[n].addEventListener("click",()=>select(n)));el.reset.addEventListener("click",()=>{index=-1;render()});el.next.addEventListener("click",()=>{const n=scenarios[scenario].steps.length;index=index===n-1?-1:index+1;render()});render();
+})();
+</script>
+</body>
+</html>
