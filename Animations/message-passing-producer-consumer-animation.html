@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive producer-consumer animation using message passing and circulating empty-message tokens.">
+  <title>Message Passing: Producer–Consumer Animation</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#f5f7fb;--surface:#fff;--text:#172033;--muted:#5b6679;--line:#d7deea;--blue:#2867cc;--blue-soft:#eaf2ff;--green:#278057;--green-soft:#e7f7ee;--red:#bd3947;--red-soft:#fff0f2;--purple:#7b45b7;--purple-soft:#f2eafb;--gold:#b97913;--gold-soft:#fff3d9;--code:#eef2f7;--shadow:0 14px 36px rgba(25,43,77,.10)}
+    @media(prefers-color-scheme:dark){:root{--bg:#111722;--surface:#1a2230;--text:#f4f7fb;--muted:#aeb8ca;--line:#344155;--blue:#83aeff;--blue-soft:#203a65;--green:#70d59d;--green-soft:#203f30;--red:#ff8e98;--red-soft:#55272d;--purple:#c79afa;--purple-soft:#3d2955;--gold:#ffc568;--gold-soft:#503b18;--code:#111925;--shadow:0 14px 36px rgba(0,0,0,.28)}}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55}main{width:min(1160px,calc(100% - 32px));margin:36px auto 64px}header{margin-bottom:22px}h1{margin:0 0 8px;font-size:clamp(2rem,5vw,3.2rem);line-height:1.05}h2{margin:0 0 12px;font-size:1.45rem}h3{margin:0 0 8px;font-size:1.08rem}p{margin:0 0 12px}.lead{max-width:880px;color:var(--muted);font-size:1.05rem}
+    .panel,.explanation section{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}.panel{padding:clamp(18px,3vw,30px)}.explanation section{padding:20px;box-shadow:none}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}.tabs,.actions{display:flex;gap:8px;flex-wrap:wrap}button{min-height:42px;border:1px solid var(--line);border-radius:9px;padding:9px 13px;background:var(--surface);color:var(--text);font:inherit;font-weight:700;cursor:pointer}button:hover{border-color:var(--blue)}button:focus-visible{outline:3px solid var(--blue-soft);outline-offset:2px}button.active,button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}@media(prefers-color-scheme:dark){button.active,button.primary{color:#101722}}
+    .machine{display:grid;grid-template-columns:190px minmax(420px,1fr) 190px;gap:18px;align-items:center}.actor{padding:15px;border:1px solid var(--line);border-radius:14px;background:var(--bg);text-align:center;transition:.25s}.actor.running{transform:translateY(-4px);border-color:var(--green)}.actor.blocked{opacity:.68;border-color:var(--red)}.actor-icon{width:68px;height:68px;margin:0 auto 8px;border-radius:50%;display:grid;place-items:center;background:var(--blue-soft);font-size:1.35rem;font-weight:850}.actor-name{font-weight:850}.actor-state{min-height:2.8em;color:var(--muted)}.actor.running .actor-state{color:var(--green);font-weight:750}.actor.blocked .actor-state{color:var(--red);font-weight:750}
+    .system{padding:15px;border:2px solid var(--purple);border-radius:18px;background:var(--purple-soft)}.system-title{text-align:center;font-weight:850;margin-bottom:12px}.mailboxes{display:grid;grid-template-columns:1fr 1fr;gap:12px}.mailbox{padding:12px;border-radius:13px;background:var(--surface);border:1px solid var(--line);min-height:188px}.mailbox h3{display:flex;justify-content:space-between;gap:8px}.count{font-variant-numeric:tabular-nums;color:var(--muted)}.queue{display:flex;flex-wrap:wrap;gap:7px;align-content:flex-start;min-height:114px}.message{width:48px;height:42px;border-radius:8px;display:grid;place-items:center;border:2px solid var(--line);font-size:.74rem;font-weight:800}.message.empty{background:var(--blue-soft);border-color:var(--blue);color:var(--blue)}.message.full{background:var(--green-soft);border-color:var(--green);color:var(--green)}.empty-note{color:var(--muted);font-size:.9rem}.legend{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:11px;font-size:.9rem}.legend span:before{content:"";display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px}.legend .l-empty:before{background:var(--blue)}.legend .l-full:before{background:var(--green)}.in-flight{height:42px;margin-top:12px;border-radius:10px;background:var(--surface);border:1px dashed var(--line);display:grid;place-items:center;color:var(--muted);font-weight:750}.in-flight.active{color:var(--purple);border-color:var(--purple)}
+    .event{margin-top:18px;min-height:116px;padding:15px 17px;border-left:5px solid var(--blue);border-radius:0 10px 10px 0;background:var(--blue-soft)}.event.block{border-color:var(--red);background:var(--red-soft)}.event.success{border-color:var(--green);background:var(--green-soft)}.event.note{border-color:var(--gold);background:var(--gold-soft)}.step{color:var(--muted);font-size:.9rem;font-weight:700}.event-message{margin:3px 0 6px;font-weight:700}.current-code{color:var(--muted)}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}.current-code code{color:var(--text);font-weight:700}.progress{display:flex;gap:5px;margin-top:14px}.progress span{height:5px;flex:1;border-radius:4px;background:var(--line)}.progress span.done{background:var(--blue)}
+    .explanation{margin-top:30px;display:grid;gap:18px}.two-column{display:grid;grid-template-columns:1fr 1fr;gap:18px}.three-column{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}ol,ul{margin:8px 0 0;padding-left:1.35rem}li+li{margin-top:6px}pre{margin:12px 0 0;padding:15px;background:var(--code);border:1px solid var(--line);border-radius:10px;overflow:auto;font-size:.87rem;line-height:1.5}.key{border-left:4px solid var(--green);padding-left:14px}.warning{border-left:4px solid var(--gold);padding-left:14px}.note-text{color:var(--muted)}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line)}th{font-weight:800}footer{margin-top:24px;color:var(--muted);font-size:.9rem;text-align:center}
+    @media(max-width:840px){main{width:min(100% - 20px,1160px);margin-top:20px}.machine{grid-template-columns:1fr 1fr}.system{grid-column:1/-1;grid-row:1}.two-column,.three-column{grid-template-columns:1fr}.actor-icon{width:56px;height:56px}.mailboxes{grid-template-columns:1fr}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>Message Passing: Producer–Consumer</h1><p class="lead">Follow a fixed set of message buffers as they circulate between a producer and consumer. Empty messages represent permission to produce; full messages carry completed items.</p></header>
+  <section class="panel" aria-labelledby="animation-title">
+    <h2 id="animation-title">Interactive message-flow animation</h2>
+    <div class="toolbar">
+      <div class="tabs" role="group" aria-label="Choose a message-passing scenario">
+        <button class="active" id="initialize-tab" type="button" aria-pressed="true">Initialize buffers</button>
+        <button id="cycle-tab" type="button" aria-pressed="false">One complete cycle</button>
+        <button id="producerblock-tab" type="button" aria-pressed="false">Producer blocks</button>
+        <button id="consumerblock-tab" type="button" aria-pressed="false">Consumer blocks</button>
+      </div>
+      <div class="actions"><button id="reset" type="button">Restart</button><button class="primary" id="next" type="button">Next step</button></div>
+    </div>
+    <div class="machine" role="img" aria-label="Producer and consumer exchanging empty and full messages through two system-managed mailboxes">
+      <div class="actor" id="producer"><div class="actor-icon">P</div><div class="actor-name">Producer</div><div class="actor-state" id="producer-state">Ready</div></div>
+      <div class="system">
+        <div class="system-title">Operating-system message queues · capacity N = 5</div>
+        <div class="mailboxes">
+          <div class="mailbox"><h3><span>Producer mailbox</span><span class="count" id="empty-count">0 empty</span></h3><div class="queue" id="empty-queue"></div></div>
+          <div class="mailbox"><h3><span>Consumer mailbox</span><span class="count" id="full-count">0 full</span></h3><div class="queue" id="full-queue"></div></div>
+        </div>
+        <div class="in-flight" id="in-flight">No message in transit</div>
+        <div class="legend"><span class="l-empty">Empty message / free slot</span><span class="l-full">Full message / item</span></div>
+      </div>
+      <div class="actor" id="consumer"><div class="actor-icon">C</div><div class="actor-name">Consumer</div><div class="actor-state" id="consumer-state">Ready</div></div>
+    </div>
+    <div class="event" id="event" aria-live="polite"><div class="step" id="step-label">Step 0</div><div class="event-message" id="event-message">Choose a scenario, then advance one message operation at a time.</div><div class="current-code" id="code-line"></div><div class="progress" id="progress" aria-hidden="true"></div></div>
+  </section>
+
+  <div class="explanation">
+    <section><h2>The central idea</h2><p>The system owns exactly <code>N</code> reusable message buffers. Initially, the consumer sends all <code>N</code> empty messages to the producer. To create an item, the producer must first receive one empty message, fill it, and send it to the consumer. After consuming the item, the consumer sends that same message back empty.</p><p class="key"><strong>The empty-message pool is also the capacity control.</strong> If the producer has no empty message to receive, all <code>N</code> buffers are full or in use, so the producer blocks automatically.</p></section>
+    <div class="three-column"><section><h3>Synchronization</h3><p>Blocking <code>receive</code> suspends a process when its mailbox contains no suitable message.</p></section><section><h3>Communication</h3><p>A full message moves the item from the producer’s address space to the consumer.</p></section><section><h3>Bounded capacity</h3><p>Only <code>N</code> messages circulate, so at most <code>N</code> produced items can await consumption.</p></section></div>
+    <section><h2>Pseudocode from the example</h2><div class="two-column"><div><h3>Producer</h3><pre><code>while (true) {
+  item = produce_item();
+  receive(consumer, &amp;msg); // get empty
+  build_message(&amp;msg, item);
+  send(consumer, &amp;msg);    // send full
+}</code></pre></div><div><h3>Consumer</h3><pre><code>for (i = 0; i &lt; N; i++)
+  send(producer, &amp;msg);    // seed empties
+
+while (true) {
+  receive(producer, &amp;msg); // get full
+  item = extract_item(&amp;msg);
+  send(producer, &amp;msg);    // return empty
+  consume_item(item);
+}</code></pre></div></div></section>
+    <section><h2>Why the names can look backward</h2><p>In this textbook notation, <code>send(destination, message)</code> names the destination, while <code>receive(source, message)</code> names the expected source. Therefore, the producer’s <code>receive(consumer, &amp;msg)</code> receives an empty message previously sent by the consumer. The consumer’s <code>receive(producer, &amp;msg)</code> receives a full message sent by the producer.</p></section>
+    <section><h2>Blocking behavior</h2><table><thead><tr><th>Situation</th><th>Blocking call</th><th>Meaning</th></tr></thead><tbody><tr><td>No empty messages</td><td><code>producer: receive(consumer)</code></td><td>All message buffers are full or in transit; the logical buffer is full.</td></tr><tr><td>No full messages</td><td><code>consumer: receive(producer)</code></td><td>No produced item is available; the logical buffer is empty.</td></tr></tbody></table><p class="note-text">A blocked process becomes runnable when the required message arrives.</p></section>
+    <section><h2>Important assumptions</h2><ul><li><code>send</code> and <code>receive</code> are operating-system primitives with well-defined atomic queue operations.</li><li>Messages are not silently duplicated or lost by the abstraction.</li><li>The example uses blocking receive. Nonblocking receive would need explicit handling for “no message available.”</li><li>Messages sent by the producer are delivered to the consumer’s mailbox and vice versa.</li><li>Initialization must create exactly <code>N</code> distinct empty message buffers—not repeatedly enqueue an unsafe reference to one mutable object.</li></ul></section>
+    <section><h2>Message passing versus shared memory</h2><p>Mutexes, semaphores, and monitors coordinate access to shared state. Message passing instead exchanges data explicitly and can work even when processes do not share memory, including across machines. The operating system or runtime still needs internal synchronization to manage mailboxes safely.</p></section>
+    <section><h2>Common design choices</h2><ul><li><strong>Direct communication:</strong> processes name each other, as in this example.</li><li><strong>Indirect communication:</strong> processes send to named mailboxes, ports, or channels.</li><li><strong>Zero capacity:</strong> sender and receiver rendezvous; neither message can wait in a queue.</li><li><strong>Bounded capacity:</strong> at most a fixed number of messages wait.</li><li><strong>Unbounded capacity:</strong> sends normally do not block for lack of queue space, although real resources remain finite.</li></ul></section>
+    <section><h2>Discussion questions</h2><ul><li>Why are <code>N</code> empty messages sent before production begins?</li><li>How does the empty-message pool replace an explicit “empty slots” semaphore?</li><li>What blocks the consumer when there is no item?</li><li>What changes if <code>send</code> is synchronous rather than buffered?</li><li>Why must the initialization create <code>N</code> independent message buffers?</li></ul></section>
+  </div>
+  <footer>Standalone classroom visualization for operating-systems instruction.</footer>
+</main>
+<script>
+(() => {
+  const base={empty:0,full:0,producer:"Ready",consumer:"Ready",flight:"",kind:"",msg:"",code:""};
+  const scenarios={
+    initialize:{initial:base,steps:[
+      {...base,consumer:"Initializing message pool",msg:"The system starts with N reusable message buffers, represented here by five envelopes.",code:"#define N 5"},
+      {...base,empty:1,consumer:"Sending empty messages",flight:"Empty message → Producer",msg:"The consumer sends the first empty message to the producer's mailbox.",code:"send(producer, &msg)"},
+      {...base,empty:3,consumer:"Sending empty messages",flight:"Empty messages → Producer",msg:"Initialization continues; each empty message represents one future buffer slot.",code:"for (i = 0; i < N; i++)"},
+      {...base,empty:5,consumer:"Ready",kind:"success",msg:"All N empty messages are now queued for the producer. Production may begin.",code:"producer mailbox contains N empty messages"}
+    ]},
+    cycle:{initial:{...base,empty:5},steps:[
+      {...base,empty:5,producer:"Producing item",msg:"The producer computes an item outside the messaging system.",code:"item = produce_item()"},
+      {...base,empty:4,producer:"Received empty message",flight:"Empty message → Producer",msg:"The producer receives one empty message. Four free-slot tokens remain.",code:"receive(consumer, &msg)"},
+      {...base,empty:4,producer:"Building full message",flight:"Producer fills message with item",msg:"The item is placed into the received message buffer.",code:"build_message(&msg, item)"},
+      {...base,empty:4,full:1,producer:"Ready",flight:"Full message → Consumer",kind:"success",msg:"The producer sends the full message to the consumer's mailbox.",code:"send(consumer, &msg)"},
+      {...base,empty:4,producer:"Ready",consumer:"Received full message",flight:"Full message → Consumer",msg:"The consumer receives the message and extracts its item.",code:"receive(producer, &msg); extract_item()"},
+      {...base,empty:5,producer:"Ready",consumer:"Consuming item",flight:"Empty message → Producer",kind:"success",msg:"The consumer returns the now-empty message, restoring the free-slot token.",code:"send(producer, &msg); consume_item(item)"}
+    ]},
+    producerblock:{initial:{...base,empty:0,full:5},steps:[
+      {...base,empty:0,full:5,producer:"Producing another item",msg:"All five message buffers already contain unconsumed items.",code:"item = produce_item()"},
+      {...base,empty:0,full:5,producer:"Blocked waiting for empty",kind:"block",msg:"The producer calls receive, but its mailbox contains no empty message. It blocks.",code:"receive(consumer, &msg)"},
+      {...base,empty:0,full:4,producer:"Blocked waiting for empty",consumer:"Received full message",flight:"Full message → Consumer",msg:"The consumer receives and processes one full message.",code:"consumer: receive(producer, &msg)"},
+      {...base,empty:1,full:4,producer:"Runnable",consumer:"Consuming item",flight:"Empty message → Producer",kind:"success",msg:"The consumer returns the empty message. The producer's receive can now complete.",code:"consumer: send(producer, &msg)"},
+      {...base,empty:0,full:4,producer:"Received empty message",consumer:"Ready",flight:"Empty message → Producer",kind:"success",msg:"The awakened producer takes the empty message and can package its item.",code:"producer: receive(consumer, &msg)"}
+    ]},
+    consumerblock:{initial:{...base,empty:5,full:0},steps:[
+      {...base,empty:5,consumer:"Waiting for item",msg:"No full message is available in the consumer's mailbox.",code:"receive(producer, &msg)"},
+      {...base,empty:5,consumer:"Blocked waiting for full",kind:"block",msg:"Blocking receive suspends the consumer until a full message arrives.",code:"receive blocks"},
+      {...base,empty:4,consumer:"Blocked waiting for full",producer:"Received empty message",flight:"Empty message → Producer",msg:"The producer receives a free buffer and builds a message.",code:"producer: receive(consumer, &msg)"},
+      {...base,empty:4,full:1,consumer:"Runnable",producer:"Ready",flight:"Full message → Consumer",kind:"success",msg:"The producer sends a full message, satisfying the blocked receive.",code:"producer: send(consumer, &msg)"},
+      {...base,empty:4,full:0,consumer:"Received full message",producer:"Ready",kind:"success",msg:"The consumer receives the message and continues with the item.",code:"extract_item(&msg)"}
+    ]}
+  };
+  const names=["initialize","cycle","producerblock","consumerblock"],tabs=Object.fromEntries(names.map(n=>[n,document.getElementById(n+"-tab")]));
+  const el={producer:document.getElementById("producer"),consumer:document.getElementById("consumer"),producerState:document.getElementById("producer-state"),consumerState:document.getElementById("consumer-state"),emptyCount:document.getElementById("empty-count"),fullCount:document.getElementById("full-count"),emptyQueue:document.getElementById("empty-queue"),fullQueue:document.getElementById("full-queue"),flight:document.getElementById("in-flight"),event:document.getElementById("event"),step:document.getElementById("step-label"),message:document.getElementById("event-message"),code:document.getElementById("code-line"),progress:document.getElementById("progress"),next:document.getElementById("next"),reset:document.getElementById("reset")};
+  let scenario="initialize",index=-1;
+  function current(){const s=scenarios[scenario];return index<0?s.initial:s.steps[index]}
+  function actor(node,state){node.classList.remove("running","blocked");if(/Producing|Received|Building|Sending|Initializing|Consuming|Runnable/.test(state))node.classList.add("running");if(/Blocked/.test(state))node.classList.add("blocked")}
+  function fillQueue(node,n,type){node.replaceChildren();if(n===0){const t=document.createElement("span");t.className="empty-note";t.textContent="Mailbox empty";node.append(t);return}for(let i=0;i<n;i++){const m=document.createElement("div");m.className="message "+type;m.textContent=type==="empty"?"EMPTY":"ITEM";m.setAttribute("aria-label",type+" message "+(i+1));node.append(m)}}
+  function render(){const seq=scenarios[scenario].steps,s=current();el.producerState.textContent=s.producer;el.consumerState.textContent=s.consumer;actor(el.producer,s.producer);actor(el.consumer,s.consumer);el.emptyCount.textContent=s.empty+" empty";el.fullCount.textContent=s.full+" full";fillQueue(el.emptyQueue,s.empty,"empty");fillQueue(el.fullQueue,s.full,"full");el.flight.textContent=s.flight||"No message in transit";el.flight.classList.toggle("active",Boolean(s.flight));el.step.textContent=index<0?"Step 0":`Step ${index+1} of ${seq.length}`;el.message.textContent=s.msg||"Choose a scenario, then advance one message operation at a time.";el.code.replaceChildren();if(s.code){el.code.append(document.createTextNode("Current operation: "));const c=document.createElement("code");c.textContent=s.code;el.code.append(c)}el.event.className="event"+(s.kind?" "+s.kind:"");el.next.textContent=index===seq.length-1?"Restart":"Next step";el.progress.replaceChildren();seq.forEach((_,i)=>{const p=document.createElement("span");if(i<=index)p.className="done";el.progress.append(p)})}
+  function select(name){scenario=name;index=-1;names.forEach(n=>{const on=n===name;tabs[n].classList.toggle("active",on);tabs[n].setAttribute("aria-pressed",String(on))});render()}
+  names.forEach(n=>tabs[n].addEventListener("click",()=>select(n)));el.reset.addEventListener("click",()=>{index=-1;render()});el.next.addEventListener("click",()=>{const n=scenarios[scenario].steps.length;index=index===n-1?-1:index+1;render()});render();
+})();
+</script>
+</body>
+</html>
