@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive semaphore animation for the bounded-buffer producer-consumer problem.">
+  <title>Semaphores and the Producer–Consumer Problem</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg:#f6f8fb; --surface:#fff; --text:#172033; --muted:#5a667a; --line:#d7ddea;
+      --blue:#235fd0; --blue-soft:#e8f0ff; --green:#33813d; --green-soft:#e9f6eb;
+      --red:#c03942; --red-soft:#fff0f1; --gold:#d89524; --gold-soft:#fff2d8;
+      --purple:#7445b8; --purple-soft:#f1eafd; --code:#eef2f7;
+      --shadow:0 14px 36px rgba(25,43,77,.10);
+    }
+    @media (prefers-color-scheme:dark) {
+      :root {
+        --bg:#111722; --surface:#1a2230; --text:#f4f7fb; --muted:#aeb8ca; --line:#334054;
+        --blue:#83adff; --blue-soft:#20395f; --green:#77d181; --green-soft:#203f2a;
+        --red:#ff8f97; --red-soft:#55272d; --gold:#ffc461; --gold-soft:#4f3a18;
+        --purple:#c8a1fa; --purple-soft:#3c2958; --code:#111925;
+        --shadow:0 14px 36px rgba(0,0,0,.28);
+      }
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55}
+    main{width:min(1120px,calc(100% - 32px));margin:36px auto 64px}
+    header{margin-bottom:22px} h1{margin:0 0 8px;font-size:clamp(2rem,5vw,3.25rem);line-height:1.05}
+    h2{margin:0 0 12px;font-size:1.45rem} h3{margin:0 0 8px;font-size:1.08rem} p{margin:0 0 12px}
+    .lead{max-width:800px;color:var(--muted);font-size:1.05rem}
+    .panel,.explanation section{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+    .panel{padding:clamp(18px,3vw,30px)} .explanation section{padding:20px;box-shadow:none}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+    .tabs,.actions{display:flex;gap:8px;flex-wrap:wrap}
+    button{min-height:42px;border:1px solid var(--line);border-radius:9px;padding:9px 13px;background:var(--surface);color:var(--text);font:inherit;font-weight:650;cursor:pointer}
+    button:hover{border-color:var(--blue)} button:focus-visible{outline:3px solid var(--blue-soft);outline-offset:2px}
+    button.active,button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+    @media (prefers-color-scheme:dark){button.active,button.primary{color:#101722}}
+    .semaphores{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px}
+    .semaphore{padding:12px 14px;border-radius:12px;text-align:center;border:1px solid var(--line);transition:transform .25s,box-shadow .25s}
+    .semaphore strong{display:block;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:1.05rem}
+    .semaphore .value{font-size:1.85rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
+    .semaphore small{color:var(--muted)}
+    .semaphore.empty{background:var(--blue-soft);color:var(--blue)} .semaphore.full{background:var(--green-soft);color:var(--green)}
+    .semaphore.mutex{background:var(--red-soft);color:var(--red)} .semaphore.active{transform:translateY(-4px);box-shadow:0 8px 18px rgba(30,45,75,.14)}
+    .stage{display:grid;grid-template-columns:1fr 1.55fr 1fr;align-items:center;gap:clamp(14px,3vw,34px);min-height:275px}
+    .actor{text-align:center}.avatar{width:92px;height:92px;margin:0 auto 10px;border-radius:50%;display:grid;place-items:center;background:var(--blue-soft);font-size:2.45rem;transition:transform .25s,opacity .25s}
+    .consumer .avatar{background:var(--purple-soft)} .actor-name{font-weight:800}.actor-state{color:var(--muted);min-height:1.5em}
+    .actor.running .avatar{transform:translateY(-5px) scale(1.04)} .actor.running .actor-state{color:var(--green);font-weight:750}
+    .actor.blocked .avatar{opacity:.48;transform:scale(.94)} .actor.blocked .actor-state{color:var(--red);font-weight:750}
+    .buffer-area{text-align:center}.buffer-title{font-weight:800}.buffer{display:grid;grid-template-columns:repeat(5,minmax(38px,1fr));gap:8px;margin:14px 0 10px}
+    .slot{aspect-ratio:1;border:2px solid var(--line);border-radius:10px;display:grid;place-items:center;background:var(--bg);font-size:1.35rem;transition:transform .25s,background .25s,border-color .25s}
+    .slot.filled{background:var(--gold-soft);border-color:var(--gold);transform:translateY(-4px)}
+    .lock-state{font-weight:750;min-height:1.5em;color:var(--muted)} .lock-state.locked{color:var(--red)}
+    .event{margin-top:20px;min-height:112px;padding:15px 17px;border-left:5px solid var(--blue);border-radius:0 10px 10px 0;background:var(--blue-soft)}
+    .event.block{border-left-color:var(--red);background:var(--red-soft)} .event.signal{border-left-color:var(--green);background:var(--green-soft)}
+    .step{color:var(--muted);font-size:.9rem;font-weight:700}.message{margin:3px 0 6px;font-weight:700}
+    code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}.current-code{color:var(--muted)}.current-code code{color:var(--text);font-weight:700}
+    .progress{display:flex;gap:5px;margin-top:14px}.progress span{height:5px;flex:1;border-radius:4px;background:var(--line)}.progress span.done{background:var(--blue)}
+    .explanation{margin-top:30px;display:grid;gap:18px}.two-column{display:grid;grid-template-columns:1fr 1fr;gap:18px}.three-column{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+    .role.empty h3{color:var(--blue)}.role.full h3{color:var(--green)}.role.mutex h3{color:var(--red)}
+    ol,ul{margin:8px 0 0;padding-left:1.35rem}li+li{margin-top:6px}
+    pre{margin:12px 0 0;padding:15px;background:var(--code);border:1px solid var(--line);border-radius:10px;overflow-x:auto;font-size:.9rem;line-height:1.55}
+    .formula{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:800;text-align:center;padding:12px;background:var(--code);border-radius:10px}
+    .answer{border-left:4px solid var(--green);padding-left:14px}.note{color:var(--muted)} footer{margin-top:24px;color:var(--muted);font-size:.9rem;text-align:center}
+    @media(max-width:760px){main{width:min(100% - 20px,1120px);margin-top:20px}.stage{grid-template-columns:1fr 1fr;min-height:0}.buffer-area{grid-column:1/-1;grid-row:1}.semaphores{grid-template-columns:1fr}.two-column,.three-column{grid-template-columns:1fr}.avatar{width:74px;height:74px;font-size:2rem}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Semaphores in Producer–Consumer</h1>
+    <p class="lead">Step through how <code>empty</code>, <code>full</code>, and <code>mutex</code> coordinate a bounded buffer without lost wakeups.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="animation-title">
+    <h2 id="animation-title">Interactive animation</h2>
+    <div class="toolbar">
+      <div class="tabs" role="group" aria-label="Choose a semaphore scenario">
+        <button class="active" id="cycle-tab" type="button" aria-pressed="true">Complete cycle</button>
+        <button id="full-tab" type="button" aria-pressed="false">Buffer full</button>
+        <button id="empty-tab" type="button" aria-pressed="false">Buffer empty</button>
+        <button id="mutex-tab" type="button" aria-pressed="false">Mutex contention</button>
+      </div>
+      <div class="actions"><button id="reset" type="button">Restart</button><button class="primary" id="next" type="button">Next step</button></div>
+    </div>
+
+    <div class="semaphores" aria-label="Current semaphore values">
+      <div class="semaphore empty" id="empty-sem"><strong>empty</strong><div class="value" id="empty-value">5</div><small>unused slots</small></div>
+      <div class="semaphore full" id="full-sem"><strong>full</strong><div class="value" id="full-value">0</div><small>available items</small></div>
+      <div class="semaphore mutex" id="mutex-sem"><strong>mutex</strong><div class="value" id="mutex-value">1</div><small>buffer access</small></div>
+    </div>
+
+    <div class="stage" role="img" aria-label="Producer and consumer coordinated by three semaphores">
+      <div class="actor producer" id="producer"><div class="avatar" aria-hidden="true">📦</div><div class="actor-name">Producer</div><div class="actor-state" id="producer-state">Ready</div></div>
+      <div class="buffer-area"><div class="buffer-title">Shared buffer</div><div class="buffer" id="buffer"><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div></div><div class="lock-state" id="lock-state">🔓 Buffer unlocked</div></div>
+      <div class="actor consumer" id="consumer"><div class="avatar" aria-hidden="true">🧺</div><div class="actor-name">Consumer</div><div class="actor-state" id="consumer-state">Ready</div></div>
+    </div>
+
+    <div class="event" id="event" aria-live="polite"><div class="step" id="step-label">Step 0</div><div class="message" id="message">Choose a scenario and advance one semaphore operation at a time.</div><div class="current-code" id="code-line"></div><div class="progress" id="progress" aria-hidden="true"></div></div>
+  </section>
+
+  <div class="explanation">
+    <section>
+      <h2>What a semaphore does</h2>
+      <p>A semaphore stores an integer value and supports two atomic operations. <code>down()</code>, also called <code>wait()</code> or <code>P()</code>, decreases the value when a resource is available; otherwise, it blocks the caller. <code>up()</code>, also called <code>signal()</code> or <code>V()</code>, releases a resource and wakes a blocked process when needed.</p>
+      <p class="answer"><strong>Why no lost wakeup?</strong> An <code>up()</code> operation is remembered in the semaphore value even when nobody is currently blocked. A later <code>down()</code> consumes that stored signal.</p>
+    </section>
+
+    <div class="three-column">
+      <section class="role empty"><h3><code>empty = N</code></h3><p>Counts unused buffer slots. The producer performs <code>down(empty)</code> before insertion. When the buffer is full, <code>empty = 0</code> and the producer blocks.</p></section>
+      <section class="role full"><h3><code>full = 0</code></h3><p>Counts available items. The consumer performs <code>down(full)</code> before removal. When the buffer is empty, <code>full = 0</code> and the consumer blocks.</p></section>
+      <section class="role mutex"><h3><code>mutex = 1</code></h3><p>Serializes access to the shared buffer. A process performs <code>down(mutex)</code> before changing the buffer and <code>up(mutex)</code> afterward.</p></section>
+    </div>
+
+    <section><h2>Relationship among the counts</h2><p class="formula">empty + full = N</p><p class="note">This equality holds when no producer or consumer has reserved a slot or item between semaphore operations. During an insertion or removal, the sum may temporarily be less than <code>N</code> because a resource has been reserved but the matching <code>up()</code> has not occurred yet. The animation uses five slots; the original example uses <code>N = 100</code>.</p></section>
+
+    <section>
+      <h2>Semaphore solution</h2>
+      <div class="two-column">
+        <div><h3>Producer</h3><pre><code>while (true) {
+    item = produce_item();
+    down(&amp;empty);
+    down(&amp;mutex);
+    insert_item(item);
+    up(&amp;mutex);
+    up(&amp;full);
+}</code></pre></div>
+        <div><h3>Consumer</h3><pre><code>while (true) {
+    down(&amp;full);
+    down(&amp;mutex);
+    item = remove_item();
+    up(&amp;mutex);
+    up(&amp;empty);
+    consume_item(item);
+}</code></pre></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Why three semaphores?</h2>
+      <p><code>empty</code> and <code>full</code> answer resource questions: “Is there a free slot?” and “Is there an item?” <code>mutex</code> answers a different question: “Who may modify the shared buffer now?” Combining these responsibilities makes the code harder to reason about and can introduce races or deadlock.</p>
+      <p class="answer"><strong>Can two be enough?</strong> Specialized single-producer/single-consumer ring buffers can sometimes avoid a mutex through carefully designed atomic indices. For this general shared-buffer solution, especially with multiple producers or consumers, all three synchronization roles are needed.</p>
+    </section>
+
+    <section>
+      <h2>Why operation order matters</h2>
+      <p>A producer checks <code>empty</code> before acquiring <code>mutex</code>; a consumer checks <code>full</code> before acquiring <code>mutex</code>. If a process locked <code>mutex</code> first and then blocked on an unavailable resource, it could prevent the other process from entering the buffer to create that resource, causing deadlock.</p>
+    </section>
+
+    <section><h2>Discussion questions</h2><ul><li>What changes when the producer executes <code>down(empty)</code>?</li><li>Why does the consumer signal <code>empty</code> after removing an item?</li><li>Why can only one process hold <code>mutex</code> at a time?</li><li>What deadlock could occur if <code>down(mutex)</code> came before <code>down(empty)</code> or <code>down(full)</code>?</li></ul></section>
+  </div>
+  <footer>Designed as a classroom visualization for operating-systems instruction.</footer>
+</main>
+
+<script>
+(() => {
+  const scenarios = {
+    cycle: {
+      initial:{p:"Ready",c:"Ready",items:0,empty:5,full:0,mutex:1,owner:""},
+      steps:[
+        {p:"Running",c:"Ready",items:0,empty:5,full:0,mutex:1,owner:"",sem:"",msg:"The producer creates an item outside the critical section.",code:"item = produce_item()"},
+        {p:"Running",c:"Ready",items:0,empty:4,full:0,mutex:1,owner:"",sem:"empty",msg:"The producer reserves one unused slot.",code:"down(&empty)"},
+        {p:"Running",c:"Ready",items:0,empty:4,full:0,mutex:0,owner:"Producer",sem:"mutex",msg:"The producer acquires exclusive access to the buffer.",code:"down(&mutex)"},
+        {p:"Running",c:"Ready",items:1,empty:4,full:0,mutex:0,owner:"Producer",sem:"",msg:"The producer inserts the item while holding mutex.",code:"insert_item(item)"},
+        {p:"Running",c:"Ready",items:1,empty:4,full:0,mutex:1,owner:"",sem:"mutex",kind:"signal",msg:"The producer releases exclusive access.",code:"up(&mutex)"},
+        {p:"Ready",c:"Ready",items:1,empty:4,full:1,mutex:1,owner:"",sem:"full",kind:"signal",msg:"The producer announces that one item is available.",code:"up(&full)"},
+        {p:"Ready",c:"Running",items:1,empty:4,full:0,mutex:1,owner:"",sem:"full",msg:"The consumer reserves the available item.",code:"down(&full)"},
+        {p:"Ready",c:"Running",items:1,empty:4,full:0,mutex:0,owner:"Consumer",sem:"mutex",msg:"The consumer acquires exclusive access to the buffer.",code:"down(&mutex)"},
+        {p:"Ready",c:"Running",items:0,empty:4,full:0,mutex:0,owner:"Consumer",sem:"",msg:"The consumer removes the item while holding mutex.",code:"item = remove_item()"},
+        {p:"Ready",c:"Running",items:0,empty:4,full:0,mutex:1,owner:"",sem:"mutex",kind:"signal",msg:"The consumer releases exclusive access.",code:"up(&mutex)"},
+        {p:"Ready",c:"Running",items:0,empty:5,full:0,mutex:1,owner:"",sem:"empty",kind:"signal",msg:"The consumer announces that one slot is free.",code:"up(&empty)"},
+        {p:"Ready",c:"Running",items:0,empty:5,full:0,mutex:1,owner:"",sem:"",msg:"The consumer processes the item outside the critical section.",code:"consume_item(item)"}
+      ]
+    },
+    full: {
+      initial:{p:"Ready",c:"Ready",items:5,empty:0,full:5,mutex:1,owner:""},
+      steps:[
+        {p:"Blocked on empty",c:"Ready",items:5,empty:0,full:5,mutex:1,owner:"",sem:"empty",kind:"block",msg:"The buffer is full. down(empty) blocks the producer.",code:"down(&empty)"},
+        {p:"Blocked on empty",c:"Running",items:5,empty:0,full:4,mutex:1,owner:"",sem:"full",msg:"The consumer reserves one available item.",code:"down(&full)"},
+        {p:"Blocked on empty",c:"Running",items:5,empty:0,full:4,mutex:0,owner:"Consumer",sem:"mutex",msg:"The consumer locks the buffer.",code:"down(&mutex)"},
+        {p:"Blocked on empty",c:"Running",items:4,empty:0,full:4,mutex:0,owner:"Consumer",sem:"",msg:"The consumer removes an item.",code:"item = remove_item()"},
+        {p:"Blocked on empty",c:"Running",items:4,empty:0,full:4,mutex:1,owner:"",sem:"mutex",kind:"signal",msg:"The consumer unlocks the buffer.",code:"up(&mutex)"},
+        {p:"Running",c:"Ready",items:4,empty:1,full:4,mutex:1,owner:"",sem:"empty",kind:"signal",msg:"up(empty) records the free slot and wakes the producer.",code:"up(&empty)"},
+        {p:"Running",c:"Ready",items:4,empty:0,full:4,mutex:1,owner:"",sem:"empty",msg:"The awakened producer completes down(empty) and reserves the slot.",code:"down(&empty) completes"}
+      ]
+    },
+    empty: {
+      initial:{p:"Ready",c:"Ready",items:0,empty:5,full:0,mutex:1,owner:""},
+      steps:[
+        {p:"Ready",c:"Blocked on full",items:0,empty:5,full:0,mutex:1,owner:"",sem:"full",kind:"block",msg:"The buffer is empty. down(full) blocks the consumer.",code:"down(&full)"},
+        {p:"Running",c:"Blocked on full",items:0,empty:4,full:0,mutex:1,owner:"",sem:"empty",msg:"The producer reserves an unused slot.",code:"down(&empty)"},
+        {p:"Running",c:"Blocked on full",items:0,empty:4,full:0,mutex:0,owner:"Producer",sem:"mutex",msg:"The producer locks the buffer.",code:"down(&mutex)"},
+        {p:"Running",c:"Blocked on full",items:1,empty:4,full:0,mutex:0,owner:"Producer",sem:"",msg:"The producer inserts an item.",code:"insert_item(item)"},
+        {p:"Running",c:"Blocked on full",items:1,empty:4,full:0,mutex:1,owner:"",sem:"mutex",kind:"signal",msg:"The producer unlocks the buffer.",code:"up(&mutex)"},
+        {p:"Ready",c:"Running",items:1,empty:4,full:1,mutex:1,owner:"",sem:"full",kind:"signal",msg:"up(full) records the item and wakes the consumer.",code:"up(&full)"},
+        {p:"Ready",c:"Running",items:1,empty:4,full:0,mutex:1,owner:"",sem:"full",msg:"The awakened consumer completes down(full) and reserves the item.",code:"down(&full) completes"}
+      ]
+    },
+    mutex: {
+      initial:{p:"Ready",c:"Ready",items:2,empty:3,full:2,mutex:1,owner:""},
+      steps:[
+        {p:"Running",c:"Ready",items:2,empty:2,full:2,mutex:1,owner:"",sem:"empty",msg:"The producer reserves an empty slot.",code:"down(&empty)"},
+        {p:"Running",c:"Ready",items:2,empty:2,full:2,mutex:0,owner:"Producer",sem:"mutex",msg:"The producer locks the buffer.",code:"down(&mutex)"},
+        {p:"Running",c:"Running",items:2,empty:2,full:1,mutex:0,owner:"Producer",sem:"full",msg:"The consumer reserves an item, then approaches the critical section.",code:"down(&full)"},
+        {p:"Running",c:"Blocked on mutex",items:2,empty:2,full:1,mutex:0,owner:"Producer",sem:"mutex",kind:"block",msg:"mutex is 0, so the consumer cannot enter while the producer is modifying the buffer.",code:"down(&mutex)"},
+        {p:"Running",c:"Blocked on mutex",items:3,empty:2,full:1,mutex:0,owner:"Producer",sem:"",msg:"The producer safely inserts its item.",code:"insert_item(item)"},
+        {p:"Ready",c:"Running",items:3,empty:2,full:1,mutex:1,owner:"",sem:"mutex",kind:"signal",msg:"The producer releases mutex, allowing the consumer to continue.",code:"up(&mutex)"},
+        {p:"Ready",c:"Running",items:3,empty:2,full:1,mutex:0,owner:"Consumer",sem:"mutex",msg:"The consumer acquires mutex and enters the critical section.",code:"down(&mutex) completes"}
+      ]
+    }
+  };
+
+  const ids=["cycle","full","empty","mutex"], tabs=Object.fromEntries(ids.map(id=>[id,document.getElementById(id+"-tab")]));
+  const el={reset:document.getElementById("reset"),next:document.getElementById("next"),producer:document.getElementById("producer"),consumer:document.getElementById("consumer"),ps:document.getElementById("producer-state"),cs:document.getElementById("consumer-state"),buffer:document.getElementById("buffer"),lock:document.getElementById("lock-state"),event:document.getElementById("event"),step:document.getElementById("step-label"),msg:document.getElementById("message"),code:document.getElementById("code-line"),progress:document.getElementById("progress"),emptyValue:document.getElementById("empty-value"),fullValue:document.getElementById("full-value"),mutexValue:document.getElementById("mutex-value"),emptySem:document.getElementById("empty-sem"),fullSem:document.getElementById("full-sem"),mutexSem:document.getElementById("mutex-sem")};
+  let scenario="cycle", index=-1;
+  function actor(node,state){node.classList.remove("running","blocked");if(state==="Running")node.classList.add("running");if(state.startsWith("Blocked"))node.classList.add("blocked")}
+  function state(){const s=scenarios[scenario];return index<0?s.initial:s.steps[index]}
+  function render(){const sequence=scenarios[scenario].steps,s=state();el.ps.textContent=s.p;el.cs.textContent=s.c;actor(el.producer,s.p);actor(el.consumer,s.c);el.emptyValue.textContent=s.empty;el.fullValue.textContent=s.full;el.mutexValue.textContent=s.mutex;[el.emptySem,el.fullSem,el.mutexSem].forEach(x=>x.classList.remove("active"));if(s.sem)el[s.sem+"Sem"].classList.add("active");Array.from(el.buffer.children).forEach((slot,i)=>{const filled=i<s.items;slot.classList.toggle("filled",filled);slot.textContent=filled?"●":"";slot.setAttribute("aria-label",filled?`Slot ${i+1}: occupied`:`Slot ${i+1}: empty`)});el.lock.textContent=s.owner?`🔒 Buffer locked by ${s.owner}`:"🔓 Buffer unlocked";el.lock.classList.toggle("locked",Boolean(s.owner));el.step.textContent=index<0?"Step 0":`Step ${index+1} of ${sequence.length}`;el.msg.textContent=s.msg||"Choose a scenario and advance one semaphore operation at a time.";el.code.replaceChildren();if(s.code){el.code.append(document.createTextNode("Current statement: "));const c=document.createElement("code");c.textContent=s.code;el.code.append(c)}el.event.className="event"+(s.kind?" "+s.kind:"");el.next.textContent=index===sequence.length-1?"Restart":"Next step";el.progress.replaceChildren();sequence.forEach((_,i)=>{const mark=document.createElement("span");if(i<=index)mark.className="done";el.progress.append(mark)})}
+  function select(name){scenario=name;index=-1;ids.forEach(id=>{const on=id===name;tabs[id].classList.toggle("active",on);tabs[id].setAttribute("aria-pressed",String(on))});render()}
+  ids.forEach(id=>tabs[id].addEventListener("click",()=>select(id)));el.reset.addEventListener("click",()=>{index=-1;render()});el.next.addEventListener("click",()=>{const n=scenarios[scenario].steps.length;index=index===n-1?-1:index+1;render()});render();
+})();
+</script>
+</body>
+</html>
