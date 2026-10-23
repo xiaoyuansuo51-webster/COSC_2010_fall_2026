@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polling, Interrupts, and DMA | Dr. Xiaoyuan Suo</title>
+<style>
+:root{color-scheme:light;--foreground:#172b43;--muted-foreground:#526579;--background:#f5f8fc;--muted:#e7edf5;--border:#ccd7e4;--viz-series-1:#19836a;--viz-series-2:#d38b15;--viz-series-3:#386acf}
+*{box-sizing:border-box}body{margin:0;background:var(--background);color:var(--foreground);font:16px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1150px;margin:auto;padding:30px 24px 40px}header{background:#143c70;color:white;padding:24px}header div{max-width:1102px;margin:auto;font-weight:600}h2{font-size:1.8rem;margin:14px 0}h3{font-size:1.1rem;min-height:54px;margin:0 0 8px}button{font:inherit;cursor:pointer;border:1px solid var(--border);border-radius:6px;padding:9px 16px;background:white;color:var(--foreground)}button:hover{background:#e7edf5}button:focus-visible{outline:3px solid #386acf;outline-offset:3px}button:disabled{opacity:.5;cursor:default}.btn-primary{background:#143c70;color:white;border-color:#143c70}.btn-primary:hover{background:#24568c}.viz-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.text-small{font-size:.85rem}.text-muted{color:var(--muted-foreground)}.tabular-nums{font-variant-numeric:tabular-nums}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.notes{margin-top:26px;border-top:1px solid var(--border);padding-top:16px}.notes p{margin:8px 0}@media(max-width:650px){main{padding:20px 16px}header{padding:20px 16px}h3{min-height:0}}
+</style>
+</head>
+<body>
+<header><div>Dr. Xiaoyuan Suo, Webster University</div></header>
+<main>
+<div id="io-demo">
+  <h2>Are you done yet?</h2>
+  <div class="viz-controls">
+    <button class="btn btn-primary" id="io-play" type="button">Play</button>
+    <button class="btn" id="io-step" type="button">Next tick</button>
+    <button class="btn" id="io-reset" type="button">Restart</button>
+    <span class="tabular-nums" id="io-clock">Tick 0 / 36</span>
+  </div>
+  <div class="io-legend text-small">CPU time: <span class="io-key work">Arithmetic</span> <span class="io-key check">Polling / interrupt handling</span> <span class="io-key transfer">Data transfer / DMA setup</span></div>
+  <div class="io-panels" id="io-panels"></div>
+  <div class="text-small text-muted">Teaching model · six cards · identical device readiness · 36 ticks · one arithmetic problem per available CPU tick</div>
+  <div id="io-announcement" class="sr-only" aria-live="polite"></div>
+</div>
+<style>
+#io-demo .io-panels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin:20px 0}
+#io-demo .io-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+#io-demo .io-key{display:inline-flex;align-items:center;gap:5px}
+#io-demo .io-key:before{content:'';width:10px;height:10px;background:var(--viz-series-1)}
+#io-demo .check:before{background:var(--viz-series-2)}
+#io-demo .transfer:before{background:var(--viz-series-3)}
+#io-demo .io-stage{display:grid;gap:12px;margin:16px 0}
+#io-demo .io-node{padding:10px 0;border-bottom:1px solid var(--border);min-height:60px}
+#io-demo .io-status{min-height:48px;margin:8px 0;color:var(--foreground)}
+#io-demo .io-route{height:26px;position:relative;background:var(--muted);overflow:hidden}
+#io-demo .io-route-label{position:absolute;inset:0;text-align:center;color:var(--foreground)}
+#io-demo .io-packet{position:absolute;left:0;top:0;height:100%;width:28px;background:var(--viz-series-3);opacity:.5;animation:io-move .65s linear both}
+#io-demo .io-cards{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+#io-demo .io-card{padding:2px 7px;background:var(--muted);color:var(--muted-foreground)}
+#io-demo .io-card.received{background:color-mix(in srgb,var(--viz-series-3) 22%,transparent);color:var(--foreground)}
+#io-demo .io-timeline{display:grid;grid-template-columns:repeat(18,1fr);gap:3px;margin:10px 0}
+#io-demo .io-tick{height:14px;background:var(--muted)}
+#io-demo .io-tick.work{background:var(--viz-series-1)}
+#io-demo .io-tick.check{background:var(--viz-series-2)}
+#io-demo .io-tick.transfer{background:var(--viz-series-3)}
+#io-demo .io-count{margin:10px 0}
+@keyframes io-move{from{left:0}to{left:calc(100% - 28px)}}
+@media(max-width:650px){#io-demo .io-panels{grid-template-columns:1fr}#io-demo .io-status{min-height:0}#io-demo .io-stage{grid-template-columns:1fr 1fr}#io-demo .io-node{min-height:0}}
+@media(prefers-reduced-motion:reduce){#io-demo .io-packet{animation:none;left:50%}}
+</style>
+<script>
+(()=>{
+const root=document.getElementById('io-demo');
+const q=s=>root.querySelector(s);
+const names=['Polling + CPU copies','Interrupts + CPU copies','DMA + completion interrupt'];
+let tick=0,timer=null;
+const models=names.map(()=>({work:0,cards:0,history:[]}));
+q('#io-panels').innerHTML=names.map((name,i)=>`<section aria-label="${name}"><h3>${name}</h3><div class="text-small">${i===0?'CPU checks readiness':i===1?'Device signals each ready card':'Controller transfers the whole block'}</div><div class="io-stage"><div class="io-node">CPU <div id="cpu-${i}" class="tabular-nums">Ready to start</div></div><div class="io-node">Device controller <div id="dev-${i}">Six cards pending</div></div></div><div class="io-route" id="route-${i}"><span class="io-route-label text-small">${i===2?'Controller → Memory':'Device → CPU → Memory'}</span></div><div class="io-status" id="status-${i}">Waiting to start</div><div>Memory <span id="received-${i}" class="tabular-nums">0 / 6</span></div><div class="io-cards" id="cards-${i}">${Array.from({length:6},(_,j)=>`<span class="io-card">${j+1}</span>`).join('')}</div><div class="io-count">Arithmetic completed: <strong class="tabular-nums" id="work-${i}">0</strong></div><div class="io-timeline" id="timeline-${i}" role="img" aria-label="CPU activity over 36 ticks"></div></section>`).join('');
+function state(i,t){
+ const copying=t>=8&&t<=33&&(t-8)%5===0;
+ const ready=t>=7&&t<=32&&(t-7)%5===0;
+ if(i===0&&t<=33)return copying?['transfer','CPU copies card','CPU moves one card into memory.']:['check','“Ready yet?”',ready?'Ready! Copy on the next tick.':'CPU checks the status register.'];
+ if(i===1){if(copying)return ['transfer','CPU copies card','CPU moves one card into memory.'];if(ready)return ['check','Handling interrupt','Device signals: one card is ready.'];}
+ if(i===2){if(t===1)return ['transfer','Setting up DMA','CPU supplies destination and card count.'];if(t===34)return ['check','Handling completion','One completion interrupt for all six cards.'];}
+ return ['work','Solving arithmetic',i===2&&copying?'DMA moves a card while the CPU works.':t>33?'Transfer finished; CPU keeps working.':'CPU continues its arithmetic task.'];
+}
+function draw(animate){
+ q('#io-clock').textContent=`Tick ${tick} / 36`;
+ models.forEach((m,i)=>{
+ const s=tick?state(i,tick):['','Ready to start','Waiting to start'];
+ q('#cpu-'+i).textContent=s[1];q('#status-'+i).textContent=s[2];q('#work-'+i).textContent=m.work;
+ q('#received-'+i).textContent=m.cards+' / 6';
+ q('#dev-'+i).textContent=tick===0?'Six cards pending':m.cards===6?'All cards delivered':tick<7?'Preparing card 1':((tick-7)%5===0?'Card ready':'Preparing / transferring')+' · '+(6-m.cards)+' remaining';
+ [...q('#cards-'+i).children].forEach((el,j)=>el.classList.toggle('received',j<m.cards));
+ q('#timeline-'+i).innerHTML=Array.from({length:36},(_,j)=>`<span class="io-tick ${m.history[j]||''}" title="Tick ${j+1}: ${m.history[j]||'pending'}"></span>`).join('');
+ q('#timeline-'+i).setAttribute('aria-label',`${tick} ticks elapsed; ${m.work} arithmetic ticks; ${tick-m.work} CPU ticks on I/O`);
+ const route=q('#route-'+i);route.querySelector('.io-packet')?.remove();
+ if(animate&&tick>=8&&tick<=33&&(tick-8)%5===0){const p=document.createElement('span');p.className='io-packet';route.appendChild(p);}
+ });
+ q('#io-step').disabled=tick>=36;
+}
+function pause(){clearInterval(timer);timer=null;q('#io-play').textContent=tick>=36?'Replay':'Play';}
+function step(){if(tick>=36)return;tick++;models.forEach((m,i)=>{const s=state(i,tick);m.history.push(s[0]);if(s[0]==='work')m.work++;if(tick>=8&&tick<=33&&(tick-8)%5===0)m.cards++;});draw(true);if(tick===36){pause();q('#io-announcement').textContent='Finished. Arithmetic problems completed: '+models.map((m,i)=>names[i]+': '+m.work).join('; ');}}
+function reset(){pause();tick=0;models.forEach(m=>{m.work=0;m.cards=0;m.history=[];});draw(false);q('#io-play').textContent='Play';}
+q('#io-play').onclick=()=>{if(timer){pause();return;}if(tick===36)reset();q('#io-play').textContent='Pause';timer=setInterval(step,850);};
+q('#io-step').onclick=()=>{pause();step();q('#io-announcement').textContent='Tick '+tick;};q('#io-reset').onclick=reset;draw(false);
+})();
+</script>
+
+<section class="notes" aria-label="Teaching notes"><p><strong>How to use:</strong> Select Play to animate all three methods, Next tick to discuss each step, or Restart to begin again. Each small timeline square represents one CPU tick.</p><p><strong>Discussion:</strong> What changed: how the CPU learned the device was ready, or who moved the data?</p><p>Interrupts provide notification. DMA moves data. This example uses a completion interrupt for DMA; DMA completion can also be detected by polling.</p><p class="text-small text-muted">Simplified teaching model: device readiness and transfer timing are identical across methods. CPU copies and DMA transfers each take one modeled tick per card. Real performance depends on hardware, interrupt overhead, polling frequency, and memory contention.</p></section>
+</main>
+</body>
+</html>
